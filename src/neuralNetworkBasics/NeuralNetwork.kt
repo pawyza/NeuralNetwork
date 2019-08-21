@@ -1,175 +1,212 @@
 package neuralNetworkBasics
 
 import java.text.DecimalFormat
-import kotlin.math.exp
 import kotlin.math.pow
 
-class NeuralNetwork(val layers : Array<Int>,var learningRate : Double) {
+/**
+ * Class containing functions allowing user to create NN adjusted for users needs
+ *
+ * @property layers array containing number of neurons in every layer in order input->hidden->output
+ * @property learningRate value which changes the speed of adjusting biases and weights by multiplying gradient, should be value from 0.0-1.0 for proper NN performance
+ * @property weights array of Matrix objects containing weights for every neuron and layer
+ * @property biases array of Double arrays containing biases for every neuron and layer
+ * @property activations array of Double arrays containing activations for every neuron and layer
+ */
+class NeuralNetwork(val layers: Array<Int>, var learningRate: Double) {
 
-    private var weightsMatrix : Array<WeightsMatrix> = emptyArray()
-    private var biases : Array<Array<Double>> = emptyArray()
-    private var a : Array<Array<Double>> = emptyArray()
+    private var weights: Array<Matrix> = emptyArray()
+    private var biases: Array<Array<Double>> = emptyArray()
+    private var activations: Array<Array<Double>> = emptyArray()
 
+    /**
+     * Prepares NN by creating its structure
+     */
     init {
-        weightsMatrix = NetworkLogic.createMatrixFromLayers(layers)//2,3   3,5   5,2
-        biases = NetworkLogic.createBiasesFromLayers(layers)
-        a = Array(layers.size){ Array(layers[it]){0.0}}
+        weights = NetworkLogic.createMatrixFromLayers(layers)
+        biases = NetworkLogic.createBiasesArray(layers)
+        activations = NetworkLogic.createActivationsArray(layers)
 
         val functionContainer: FunctionContainer = object : FunctionContainer {
             /**
-             * Function is rule which will generate new matrix values
+             * Function which will determinate how biases and weights will be generated
              */
             override fun fillingFunction(): Double {
-                return java.util.Random().nextGaussian()/layers[0].toDouble().pow(0.5)
+                return java.util.Random().nextGaussian() / layers[0].toDouble().pow(0.5)
             }
         }
 
-        NetworkLogic.fillAllMatrix(weightsMatrix, functionContainer)
+        NetworkLogic.fillAllMatrices(weights, functionContainer)
         NetworkLogic.fillAllArrays(biases, functionContainer)
     }
 
-    fun predict(input : Array<Double>) : Array<Double>{
-        require(a[0].size == input.size){"Input values and input layer must be the same size"}
-        a[0] = input
-        for(layer in 0 until layers.size-1){
-            val matrix = weightsMatrix[layer]
-            a[layer + 1] = NetworkLogic.calculateLayerOutput(weightsMatrix[layer], biases[layer], a[layer])
-        }
-        return a.last()
-    }
-
-    private fun activationFunction(x : Double) : Double = 1/(1+ exp(-x))
-
-    fun showNeuralNetworkState() {
-        val formatter = DecimalFormat("0.00000")
-        println("\nBiases")
-        biases.mapIndexed {layerIndex ,layer -> println(layer.mapIndexed {neuronIndex, bias -> "Layer: ${layerIndex+1} Neuron: $neuronIndex Bias:${when (bias < 0) {
-                true -> ""; false -> " "
-            } + formatter.format(bias)
-        }"}.joinToString(" || "))}
-        println("\nWeights")
-        weightsMatrix.mapIndexed{layerIndex, layer -> println("Layer: $layerIndex\n${layer.printMatrix()}")}
-        println("\nValues")
-        a.mapIndexed {layerIndex ,layer -> println(layer.mapIndexed {neuronIndex, x -> "Layer: $layerIndex Neuron: $neuronIndex Value:${when (x < 0) {
-            true -> ""; false -> " "
-        } + formatter.format(x)
-        }"}.joinToString(" || "))}
-        //weightsMatrix.mapIndexed{ind, matrix -> matrix.zip(biases[ind]); println(matrix.printMatrix()); println() }
-    }
-
-    fun showNeuralNetworkFullState(correctAnswer: Int) {
-        showNeuralNetworkState()
-        val formatter = DecimalFormat("0.00000")
-        val gradientsW = allWGradients(correctAnswer)
-        val gradientsB = allBGradients(gradientsW,correctAnswer)
-        /*println("\nError")
-        errors.mapIndexed {layerIndex ,layer -> println(layer.mapIndexed {neuronIndex, e -> "Layer: $layerIndex Neuron: $neuronIndex Error: ${when (e < 0) {
-            true -> ""; false -> " "
-        } + formatter.format(e)
-        }"}.joinToString("\n"))}*/
-        println("\nGradients W")
-        gradientsW.mapIndexed {layerIdx ,layer -> layer.matrix.mapIndexed{neuronIdx, neuron -> neuron.mapIndexed{outputIdx, weight -> println("Layer: $layerIdx Neuron: $neuronIdx Gradient W: ${weight*a[layerIdx][neuronIdx]}")}}}
-        println("\nGradients B")
-        gradientsB.mapIndexed {layerIdx ,layer -> println(layer.mapIndexed {neuronIdx, e -> "Layer: $layerIdx Neuron: $neuronIdx Gradient B: ${when (e < 0) {
-            true -> ""; false -> " "
-        } + formatter.format(e)
-        }"}.joinToString("\n"))}
-    }
-
-    fun calculateFullCost(results : Array<Double>, correctAnswer : Int) : Double = results.mapIndexed{index, result -> (result- when(index==correctAnswer){
-        true -> 1.0
-        false -> 0.0
-    }).pow(2)}.sum()/results.size
-
-    private fun totalError(correctAnswer: Int) : Double = a.last().mapIndexed {neuron, result -> (when(neuron == correctAnswer){
-                        true -> 1.0
-                        false -> 0.0
-                    } - result).pow(2)
-                }.sum()
-
-    private fun allWGradients(correctAnswer: Int) : Array<WeightsMatrix> {
-        val gradients  = NetworkLogic.createMatrixFromLayers(layers)
-        //weightsMatrix.map { println(it.printMatrix());println() }
-        //gradients.map {println(it.printMatrix());println() }
-        for(layer in (0 until layers.size-1).reversed()){
-            for (inputNeuron in 0 until layers[layer]) {
-                for (neuron in 0 until layers[layer+1]) {
-                    //weightsMatrix.map { println(it.printMatrix());println() }
-                    //gradients.map {println(it.printMatrix());println() }
-                    gradients[layer].setWeight(inputNeuron,neuron, when (layer == layers.size - 2) {
-                        true -> (a[layer+1][neuron] * (1 - a[layer+1][neuron])) * 2 * (a[layer+1][neuron] - when (neuron == correctAnswer) {
-                            true -> 1.0
-                            false -> 0.0
-                        })
-                        false -> {
-                            //println( "${weightsMatrix[layer].getWeight(inputNeuron,neuron)} ${gradients[layer+1].getWeight(inputNeuron,neuron)}");
-                            a[layer+1][neuron] * (1 - a[layer+1][neuron]) * weightsMatrix[layer+1].getColumnElements(neuron).mapIndexed{outputIdx, weight -> weight * gradients[layer+1].getWeight(neuron,outputIdx)}.sum()
-                        }})
-                    //gradients.map {println(it.printMatrix());println() }
-                    }
-                }
-            }
-        //gradients.map { it.map{ ele -> println(ele)}; println() }
-        return gradients
-    }
-
-    private fun allBGradients(gradientsW : Array<WeightsMatrix>,correctAnswer: Int) : Array<Array<Double>> {
-        val totalError = totalError(correctAnswer)
-        val gradients = Array(a.size-1){Array(a[it+1].size){0.0}}
-        for(layer in gradients.indices.reversed()){
-            for(neuron in gradients[layer].indices)
-                when(layer == gradients.size-1){
-                    true -> gradients[layer][neuron] =  a[layer+1][neuron] * (1- a[layer+1][neuron]) * 2 * ( a[layer+1][neuron] - when(neuron ==correctAnswer){
-                        true -> 1.0
-                        false -> 0.0
-                    })
-                    false -> {
-                        gradients[layer][neuron] = a[layer+1][neuron] * (1 - a[layer+1][neuron]) * weightsMatrix[layer+1].getColumnElements(neuron).mapIndexed{outputIdx, weight -> weight * gradients[layer+1][outputIdx]}.sum()
-
-                    }
-                }
-        }
-        //gradients.map { it.map{ ele -> println(ele)}; println() }
-        return gradients
-    }
-
-    /*
-    private fun allWGradients(result : Array<Double>, correctAnswer: Int) : Array<Array<Double>> {
-        val weightErrors = Array(a.size){Array(a[it].size){0.0}}
-        for(layer in weightErrors.indices.reversed()){
-            for(neuron in weightErrors[layer].indices)
-                when(layer == weightErrors.size-1){
-                    true -> weightErrors[layer][neuron] = when(neuron ==correctAnswer){
-                        true -> 1.0
-                        false -> 0.0
-                    } - result[neuron]
-                    false -> {
-                        val neuronWeightsSum = weightsMatrix[layer].getColumnElements(neuron).sum()
-                        weightErrors[layer][neuron] =
-                            weightsMatrix[layer].getColumnElements(neuron).mapIndexed {outputNeuron, weight -> weight/neuronWeightsSum*weightErrors[layer+1][outputNeuron]
-                        }.sum()
-                    }
-                }
-        }
-        //weightErrors.map { it.map{ ele -> println(ele)}; println() }
-        return weightErrors
-    }
+    /**
+     * Calculates activations for all neurons in network using biases, weights and activations of former layers
+     *
+     * @param input array for input data that will be feed into network in order to get predictions
+     * @return array of last layer activations in other words output activations or just results
      */
+    fun predict(input: Array<Double>): Array<Double> {
+        require(activations[0].size == input.size) { "Input values and input layer must be the same size" }
+        activations[0] = input
+        for (layer in 0 until layers.size - 1) {
+            activations[layer + 1] =
+                NetworkLogic.calculateLayerOutput(weights[layer], biases[layer], activations[layer])
+        }
+        return activations.last()
+    }
 
+    /**
+     * Feeds network with calculated gradients
+     *
+     * @param correctAnswer int value indicating which output neuron should have highest value activations
+     */
     fun learnNetwork(correctAnswer: Int) {
-        val gradientsW = allWGradients(correctAnswer)
-        val gradientsB = allBGradients(gradientsW,correctAnswer)
+        val gradientsW = calculateWeightGradients(correctAnswer)
+        val gradientsB = calculateBiasesGradients(correctAnswer)
 
-        for(layer in layers.size-2 downTo 0) {
-            for(neuron in 0 until layers[layer+1]) {
+        for (layer in layers.size - 2 downTo 0) {
+            for (neuron in 0 until layers[layer + 1]) {
                 biases[layer][neuron] = biases[layer][neuron] - learningRate * gradientsB[layer][neuron]
             }
             for (neuron in 0 until layers[layer]) {
-                for (outputNeuron in 0 until layers[layer+1]){
-                    weightsMatrix[layer].setWeight(neuron = neuron, toNeuron = outputNeuron, value = weightsMatrix[layer].getWeight(neuron,outputNeuron) - learningRate * a[layer][neuron] * gradientsW[layer].getWeight(neuron,outputNeuron))
+                for (outputNeuron in 0 until layers[layer + 1]) {
+                    weights[layer].setValue(
+                        neuron = neuron,
+                        toNeuron = outputNeuron,
+                        value = weights[layer].getValue(
+                            neuron,
+                            outputNeuron
+                        ) - learningRate * activations[layer][neuron] * gradientsW[layer].getValue(neuron, outputNeuron)
+                    )
                 }
             }
         }
+    }
 
+    /**
+     * Calculates total cost for all output neurons
+     *
+     * @param correctAnswer int value indicating which output neuron should have highest value activations
+     * @return total cost for all output neurons
+     */
+    private fun totalCost(correctAnswer: Int): Double = activations.last().mapIndexed { neuron, result ->
+        (when (neuron == correctAnswer) {
+            true -> 1.0
+            false -> 0.0
+        } - result).pow(2)
+    }.sum()
+
+    /**
+     * Calculates gradients required for weight adjusting
+     *
+     * @param correctAnswer int value indicating which output neuron should have highest value activations
+     * @return array of Matrix objects containing gradients required for weight adjusting
+     */
+    private fun calculateWeightGradients(correctAnswer: Int): Array<Matrix> {
+        val gradients = NetworkLogic.createMatrixFromLayers(layers)
+        for (layer in (0 until layers.size - 1).reversed()) {
+            for (inputNeuron in 0 until layers[layer]) {
+                for (neuron in 0 until layers[layer + 1]) {
+                    gradients[layer].setValue(
+                        inputNeuron, neuron, when (layer == layers.size - 2) {
+                            true -> (activations[layer + 1][neuron] * (1 - activations[layer + 1][neuron])) * 2 * (activations[layer + 1][neuron] - when (neuron == correctAnswer) {
+                                true -> 1.0
+                                false -> 0.0
+                            })
+                            false -> {
+                                activations[layer + 1][neuron] * (1 - activations[layer + 1][neuron]) * weights[layer + 1].getColumnElements(
+                                    neuron
+                                ).mapIndexed { outputIdx, weight ->
+                                    weight * gradients[layer + 1].getValue(
+                                        neuron,
+                                        outputIdx
+                                    )
+                                }.sum()
+                            }
+                        }
+                    )
+                }
+            }
+        }
+        return gradients
+    }
+
+    /**
+     * Calculates gradients required for biases adjusting
+     *
+     * @param correctAnswer int value indicating which output neuron should have highest value activations
+     * @return array of Double arrays containing gradients required for biases adjusting
+     */
+    private fun calculateBiasesGradients(correctAnswer: Int): Array<Array<Double>> {
+        val gradients = Array(activations.size - 1) { Array(activations[it + 1].size) { 0.0 } }
+        for (layer in gradients.indices.reversed()) {
+            for (neuron in gradients[layer].indices)
+                when (layer == gradients.size - 1) {
+                    true -> gradients[layer][neuron] =
+                        activations[layer + 1][neuron] * (1 - activations[layer + 1][neuron]) * 2 * (activations[layer + 1][neuron] - when (neuron == correctAnswer) {
+                            true -> 1.0
+                            false -> 0.0
+                        })
+                    false -> {
+                        gradients[layer][neuron] =
+                            activations[layer + 1][neuron] * (1 - activations[layer + 1][neuron]) * weights[layer + 1].getColumnElements(
+                                neuron
+                            ).mapIndexed { outputIdx, weight -> weight * gradients[layer + 1][outputIdx] }.sum()
+
+                    }
+                }
+        }
+        return gradients
+    }
+
+    /**
+     * Prints actual NN states including biases, weights, activations with respect to layers, neurons and output neurons
+     */
+    fun showNeuralNetworkState() {
+        val formatter = DecimalFormat("0.00000")
+        println("\nBiases")
+        biases.mapIndexed { layerIndex, layer ->
+            println(layer.mapIndexed { neuronIndex, bias ->
+                "Layer: ${layerIndex + 1} Neuron: $neuronIndex Bias:${when (bias < 0) {
+                    true -> ""; false -> " "
+                } + formatter.format(bias)
+                }"
+            }.joinToString(" || "))
+        }
+        println("\nWeights")
+        weights.mapIndexed { layerIdx, layer -> println("Layer: $layerIdx\n${layer.printMatrix()}") }
+        println("\nValues")
+        activations.mapIndexed { layerIdx, layer ->
+            println(layer.mapIndexed { neuronIdx, x ->
+                "Layer: $layerIdx Neuron: $neuronIdx Value:${when (x < 0) {
+                    true -> ""; false -> " "
+                } + formatter.format(x)
+                }"
+            }.joinToString(" || "))
+        }
+    }
+
+
+    /**
+     * Prints actual NN states including biases, weights, activations and gradients for given answer with respect to layers, neurons and output neurons
+     *
+     * @param correctAnswer int value indicating which output neuron should have highest value activations
+     */
+    fun showNeuralNetworkFullState(correctAnswer: Int) {
+        showNeuralNetworkState()
+        val formatter = DecimalFormat("0.00000")
+        val gradientsW = calculateWeightGradients(correctAnswer)
+        val gradientsB = calculateBiasesGradients(correctAnswer)
+        println("\nGradients W")
+        gradientsW.mapIndexed { layerIdx, layer -> println("Layer: $layerIdx\n${layer.printMatrix()}") }
+        println("\nGradients B")
+        gradientsB.mapIndexed { layerIdx, layer ->
+            println(layer.mapIndexed { neuronIdx, e ->
+                "Layer: $layerIdx Neuron: $neuronIdx Gradient B: ${when (e < 0) {
+                    true -> ""; false -> " "
+                } + formatter.format(e)
+                }"
+            }.joinToString("\n"))
+        }
     }
 }
