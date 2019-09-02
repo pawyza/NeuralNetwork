@@ -42,7 +42,7 @@ private fun testNetwork(network: NeuralNetwork, data: Data, testData: Data) {
     }
     val untrained = (correct / testData.getDataSize()) * 100
     println("Correctness of untrained NN: ${DecimalFormat("#0.00").format(untrained)}%")
-    val loops = 1
+    val loops = 200
     val dataPackSize = 10
     val dataLoop = 10
     for (l in 0 until loops) {

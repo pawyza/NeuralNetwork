@@ -1,5 +1,5 @@
 package neuralNetworkBasics
 
-internal abstract interface FunctionContainer{
+internal interface FunctionContainer{
     fun fillingFunction() : Double
 }

@@ -12,7 +12,7 @@ import kotlin.math.pow
  * @property biases array of Double arrays containing biases for every neuron and layer
  * @property activations array of Double arrays containing activations for every neuron and layer
  */
-class NeuralNetwork(val layers: Array<Int>, var learningRate: Double) {
+class NeuralNetwork(val layers: Array<Int>, var learningRate : Double) {
 
     private var weights: Array<Matrix> = emptyArray()
     private var biases: Array<Array<Double>> = emptyArray()
