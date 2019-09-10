@@ -53,9 +53,8 @@ private fun testNetwork(network: NeuralNetwork, data: Data, testData: Data) {
             correct = 0.0
             for (i in 0 until dataPackSize) {
                 val result = network.predict(data.getData(dataPack[i]).second)
-                when (result.indexOf(result.max()) == data.getData(dataPack[i]).first.toInt()) {
-                    true -> correct++
-                }
+                if (result.indexOf(result.max()) == data.getData(dataPack[i]).first.toInt())
+                    correct++
                 network.learnNetwork(data.getData(dataPack[i]).first.toInt())
             }
             val tok = System.currentTimeMillis()
